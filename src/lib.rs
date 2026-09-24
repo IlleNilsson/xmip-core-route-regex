@@ -16,11 +16,12 @@
 //!
 //! The text is the value rendered as a filter would compare it — text as it
 //! is, a boolean as `true` or `false`, a number as it prints — so a pattern
-//! can read a digit out of an integer as easily as out of a string.
+//! can read a digit out of an integer as easily as out of a string. It is read
+//! through `route::routable`, as every context value a filter names is
+//! (ADR-0046, amended 2026-09-24).
 //!
 //! A route technology does not decide anything: it reads.
 
-use context::ContextValue;
 use message::Message;
 use regex::Regex;
 use route::{Source, SourceError};
@@ -52,15 +53,10 @@ impl Source for RegexSource {
 
         let regex = Regex::new(pattern).map_err(|error| refuse(error.to_string()))?;
 
-        let text = match message.context().get(property) {
-            None | Some(ContextValue::Null) => return Ok(None),
-            Some(ContextValue::Binary(bytes)) => {
-                return Err(refuse(format!(
-                    "{property} holds {} bytes, and bytes are not routable as text",
-                    bytes.len()
-                )));
-            }
-            Some(value) => route::text_of(value).unwrap_or_default(),
+        let Some(text) =
+            route::routable(property, message.context().get(property)).map_err(refuse)?
+        else {
+            return Ok(None);
         };
 
         Ok(regex.captures(&text).map(|captures| {
@@ -75,7 +71,7 @@ impl Source for RegexSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use context::MessageContext;
+    use context::{ContextValue, MessageContext};
     use message::MessageTreatment;
     use route::{Predicate, Value};
     use xcore::MessageId;
