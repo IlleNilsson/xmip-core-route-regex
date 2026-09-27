@@ -1,6 +1,6 @@
 # xmip-core-route-regex
 
-Regex route technology: `regex:<property>:<pattern>` applies a pattern to another property's text and reads the first capture, or the whole match. A technology of [xmip-core-route](https://github.com/IlleNilsson/xmip-core-route).
+Regex route technology: `regex:<property>:<pattern>` applies a pattern, compiled once as xmip-core-path-regex's Pattern, to another property's text and reads the first capture, the whole match or a #name group. A technology of [xmip-core-route](https://github.com/IlleNilsson/xmip-core-route).
 
 ## Toolchain
 
