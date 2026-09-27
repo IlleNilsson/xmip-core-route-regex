@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/IlleNilsson/xmip-core-route-regex"
-description = "Regex route technology: `regex:<property>:<pattern>` applies a pattern to another property's text and reads the first capture, or the whole match. A xmip-core-route technology."
+description = "Regex route technology: `regex:<property>:<pattern>` applies a pattern, compiled once as xmip-core-path-regex's Pattern, to another property's text and reads the first capture, the whole match or a #name group. A xmip-core-route technology."
 publish = false
 
 [lib]
@@ -15,18 +15,18 @@ path = "src/lib.rs"
 
 [dependencies]
 # A Technology depends on its parent Capability, never the reverse
-# (repository-model.md). The Source trait lives in route and takes a Message.
+# (repository-model.md). The Source trait lives in route; a compiled reading
+# takes a Message and its content, parsed once, which is path's.
 route = { package = "xmip-core-route", git = "https://github.com/IlleNilsson/xmip-core-route", branch = "main" }
+path = { package = "xmip-core-path", git = "https://github.com/IlleNilsson/xmip-core-path", branch = "main" }
 message = { package = "xmip-core-message", git = "https://github.com/IlleNilsson/xmip-core-message", branch = "main" }
-context = { package = "xmip-core-context", git = "https://github.com/IlleNilsson/xmip-core-context", branch = "main" }
-
-# The one real engine, the same one xmip-core-contract-regex matches with.
-regex = "1"
+# The one extraction a pattern makes, the regex path language's: compiled
+# once, the first group, the whole match or a #name.
+path_regex = { package = "xmip-core-path-regex", git = "https://github.com/IlleNilsson/xmip-core-path-regex", branch = "main" }
 
 [dev-dependencies]
-# A test states the filter it proves as the expression a Subscription holds.
-path = { package = "xmip-core-path", git = "https://github.com/IlleNilsson/xmip-core-path", branch = "main" }
 # Only the tests build a Message from its parts.
+context = { package = "xmip-core-context", git = "https://github.com/IlleNilsson/xmip-core-context", branch = "main" }
 xcore = { package = "xmip-core", git = "https://github.com/IlleNilsson/xmip-core", branch = "main" }
 
 [lints.rust]

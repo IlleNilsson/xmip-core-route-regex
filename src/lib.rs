@@ -5,14 +5,17 @@
 //! A Subscription's filter names properties, and each property is read from
 //! one source. This source extracts a capture from any text value:
 //! `regex:<property>:<pattern>` applies `<pattern>` to the text of the context
-//! value `<property>` and reads the first capture group, or the whole match
-//! where the pattern has no group — `regex:OrderNo:^INV-(\d+)$` reads the
+//! value `<property>` and reads what the `regex` path language reads — the
+//! first capture group, or the whole match where the pattern has no group, or
+//! the group a trailing `#name` picks — `regex:OrderNo:^INV-(\d+)$` reads the
 //! digits of an order number, `regex:Subject:urgent|asap` reads whichever word
-//! is there. The pattern is everything after the second colon, so it may hold
-//! colons of its own. A property the context does not hold, a `Null`, and a
-//! pattern that does not match promote nothing, so a filter over them declines
-//! with its reason. A pattern that does not compile, bytes, and a property with
-//! no pattern are errors. ADR-0046.
+//! is there. The pattern is `xmip-core-path-regex`'s [`Pattern`], compiled
+//! once when the filter is, and one extraction for route and path alike. The
+//! pattern is everything after the second colon, so it may hold colons of its
+//! own. A property the context does not hold, a `Null`, a pattern that does
+//! not match, and a group that took no part in the match promote nothing, so
+//! a filter over them declines with its reason. A pattern that does not
+//! compile, bytes, and a property with no pattern are errors. ADR-0046.
 //!
 //! The text is the value rendered as a filter would compare it — text as it
 //! is, a boolean as `true` or `false`, a number as it prints — so a pattern
@@ -23,8 +26,9 @@
 //! A route technology does not decide anything: it reads.
 
 use message::Message;
-use regex::Regex;
-use route::{Source, SourceError};
+use path::Content;
+use path_regex::Pattern;
+use route::{Reading, Source};
 
 /// The manifest leaf and the prefix a property carries.
 pub const TECHNOLOGY: &str = "regex";
@@ -37,34 +41,36 @@ impl Source for RegexSource {
         TECHNOLOGY
     }
 
-    fn read(&self, message: &Message, name: &str) -> Result<Option<String>, SourceError> {
-        let refuse = |reason: String| SourceError::new(TECHNOLOGY, name, reason);
-
+    fn compile(&self, name: &str) -> Result<Box<dyn Reading>, String> {
         let Some((property, pattern)) = name.split_once(':') else {
-            return Err(refuse(
-                "a property is regex:<property>:<pattern>".to_string(),
-            ));
+            return Err("a property is regex:<property>:<pattern>".to_string());
         };
         if property.is_empty() || pattern.is_empty() {
-            return Err(refuse(
-                "both a property and a pattern are needed".to_string(),
-            ));
+            return Err("both a property and a pattern are needed".to_string());
         }
+        Ok(Box::new(Extraction {
+            property: property.to_string(),
+            pattern: Pattern::parse(pattern).map_err(|refused| refused.message)?,
+        }))
+    }
+}
 
-        let regex = Regex::new(pattern).map_err(|error| refuse(error.to_string()))?;
+/// A pattern compiled, and the context value it reads.
+struct Extraction {
+    property: String,
+    pattern: Pattern,
+}
 
-        let Some(text) =
-            route::routable(property, message.context().get(property)).map_err(refuse)?
+impl Reading for Extraction {
+    fn read(&self, message: &Message, _: Option<&Content<'_>>) -> Result<Option<String>, String> {
+        let Some(text) = route::routable(&self.property, message.context().get(&self.property))?
         else {
             return Ok(None);
         };
-
-        Ok(regex.captures(&text).map(|captures| {
-            captures
-                .get(1)
-                .or_else(|| captures.get(0))
-                .map_or_else(String::new, |found| found.as_str().to_string())
-        }))
+        Ok(self
+            .pattern
+            .find(&text)
+            .map(|range| text[range].to_string()))
     }
 }
 
@@ -73,6 +79,7 @@ mod tests {
     use super::*;
     use context::{ContextValue, MessageContext};
     use message::MessageTreatment;
+    use route::{Gathering, Promoted, SourceError};
     use xcore::MessageId;
 
     fn message() -> Message {
@@ -91,8 +98,15 @@ mod tests {
         )
     }
 
+    fn promote(properties: &[&str]) -> Result<Promoted, SourceError> {
+        Gathering::new(&[&RegexSource], properties).promote(&message())
+    }
+
     fn read(name: &str) -> Result<Option<String>, SourceError> {
-        RegexSource.read(&message(), name)
+        let property = format!("regex:{name}");
+        Ok(promote(&[property.as_str()])?
+            .get(&property)
+            .map(str::to_string))
     }
 
     #[test]
@@ -124,6 +138,14 @@ mod tests {
         assert_eq!(read(r"OrderNo:^PO-(\d+)$").expect("no match"), None);
         assert_eq!(read(r"Region:.*").expect("absent"), None);
         assert_eq!(read(r"Note:.*").expect("null"), None);
+        assert_eq!(
+            read(r"Subject:(?i)(urgent)|(asap)").expect("group 1 took no part"),
+            None
+        );
+        assert_eq!(
+            read(r"Subject:(?i)(?<word>urgent|asap)#word").expect("named"),
+            Some("ASAP".into())
+        );
     }
 
     #[test]
@@ -146,10 +168,8 @@ mod tests {
     fn the_technology_is_regex_and_promote_reads_the_prefixed_property() {
         assert_eq!(RegexSource.technology(), "regex");
 
-        let sources: [&dyn Source; 1] = [&RegexSource];
         let number = r"regex:OrderNo:^INV-(\d+)$";
-        let promoted =
-            route::promote(&message(), &sources, &[number, "regex:Note:.*"]).expect("readable");
+        let promoted = promote(&[number, "regex:Note:.*"]).expect("readable");
 
         assert_eq!(promoted.get(number), Some("0012345"));
         assert_eq!(promoted.get("regex:Note:.*"), None);
