@@ -77,19 +77,20 @@ impl Reading for Extraction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use context::{ContextValue, MessageContext};
+    use context::MessageContext;
     use message::MessageTreatment;
     use route::{Gathering, Promoted, SourceError};
     use xcore::MessageId;
+    use xcore::ScalarValue;
 
     fn message() -> Message {
         let context = MessageContext::new()
-            .with_value("OrderNo", ContextValue::Text("INV-0012345".into()))
-            .with_value("Subject", ContextValue::Text("Please treat as ASAP".into()))
-            .with_value("When", ContextValue::Text("2026-09-10T09:30:00Z".into()))
-            .with_value("Amount", ContextValue::Integer(1500))
-            .with_value("Note", ContextValue::Null)
-            .with_value("Blob", ContextValue::Binary(vec![0, 1]));
+            .with_value("OrderNo", ScalarValue::Text("INV-0012345".into()))
+            .with_value("Subject", ScalarValue::Text("Please treat as ASAP".into()))
+            .with_value("When", ScalarValue::Text("2026-09-10T09:30:00Z".into()))
+            .with_value("Amount", ScalarValue::Integer(1500))
+            .with_value("Note", ScalarValue::Null)
+            .with_value("Blob", ScalarValue::Binary(vec![0, 1]));
         Message::received(
             MessageId::new(1),
             Vec::new(),
