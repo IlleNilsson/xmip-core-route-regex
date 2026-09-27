@@ -73,7 +73,6 @@ mod tests {
     use super::*;
     use context::{ContextValue, MessageContext};
     use message::MessageTreatment;
-    use route::{Predicate, Value};
     use xcore::MessageId;
 
     fn message() -> Message {
@@ -155,14 +154,12 @@ mod tests {
         assert_eq!(promoted.get(number), Some("0012345"));
         assert_eq!(promoted.get("regex:Note:.*"), None);
         assert!(
-            Predicate::equals(number, Value::Integer(12345))
-                .test(&promoted)
-                .passed()
-        );
-        assert!(
-            Predicate::equals(number, Value::Text("0012345".into()))
-                .test(&promoted)
-                .passed()
+            path::expression::Expression::parse(
+                r#""regex:OrderNo:^INV-(\d+)$" = 12345 and "regex:OrderNo:^INV-(\d+)$" = '0012345'"#
+            )
+            .expect("compiles")
+            .evaluate(&promoted)
+            .holds()
         );
     }
 }
