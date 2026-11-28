@@ -175,7 +175,7 @@ mod tests {
         assert_eq!(promoted.get(number), Some("0012345"));
         assert_eq!(promoted.get("regex:Note:.*"), None);
         assert!(
-            path::expression::Expression::parse(
+            expression::Expression::parse(
                 r#""regex:OrderNo:^INV-(\d+)$" = 12345 and "regex:OrderNo:^INV-(\d+)$" = '0012345'"#
             )
             .expect("compiles")
